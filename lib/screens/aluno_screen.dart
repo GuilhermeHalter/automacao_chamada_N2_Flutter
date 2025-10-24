@@ -1,7 +1,201 @@
+import 'dart:async'; 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/chamada_timer_service.dart';
 
-class AlunoScreen extends StatelessWidget {
+enum AlunoStatus {
+  ocioso, 
+  procurando,
+  registrado, 
+  falhaJanelaFechada, 
+  falhaForaDaChamada,
+}
+
+class AlunoScreen extends StatefulWidget {
   const AlunoScreen({super.key});
+
+  @override
+  State<AlunoScreen> createState() => _AlunoScreenState();
+}
+
+class _AlunoScreenState extends State<AlunoScreen> {
+  AlunoStatus _status = AlunoStatus.ocioso;
+  Timer? _scanSimulatorTimer;
+  int _rodadaRegistrada = 0;
+
+  @override
+  void dispose() {
+    _pararSimuladorScan();
+    super.dispose();
+  }
+
+  void _iniciarSimuladorScan() {
+    setState(() {
+      _status = AlunoStatus.procurando;
+    });
+
+    _pararSimuladorScan();
+
+    _scanSimulatorTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final timerService = context.read<ChamadaTimerService>();
+
+      if (!timerService.chamadaAtiva) {
+        setState(() {
+          _status = AlunoStatus.falhaForaDaChamada;
+        });
+        _pararSimuladorScan();
+        return;
+      }
+
+      if (timerService.janelaRegistroAberta) {
+        print("ALUNO SCREEN: Professor 'detectado' na rodada ${timerService.rodadaAtual}");
+
+        // TODO: Substituir por dados reais do aluno logado no futuro
+        timerService.registrarPresencaAluno("Aluno Teste", "RA001");
+
+        setState(() {
+          _status = AlunoStatus.registrado;
+          _rodadaRegistrada = timerService.rodadaAtual;
+        });
+        _pararSimuladorScan();
+      } else {
+        print("ALUNO SCREEN: Procurando... Janela fechada ou ainda não abriu.");
+         if(_status != AlunoStatus.procurando) {
+             setState(() { _status = AlunoStatus.procurando; });
+         }
+      }
+    });
+  }
+
+  void _pararSimuladorScan() {
+    _scanSimulatorTimer?.cancel();
+    _scanSimulatorTimer = null;
+    print("ALUNO SCREEN: Simulador de Scan parado.");
+  }
+
+  Widget _buildStatusContent() {
+    final timerService = context.watch<ChamadaTimerService>();
+
+    switch (_status) {
+      case AlunoStatus.ocioso:
+        return Column(
+          children: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C853),
+                padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              onPressed: _iniciarSimuladorScan,
+              child: const Column(
+                children: [
+                  Icon(Icons.wifi_tethering, color: Colors.white, size: 40),
+                  SizedBox(height: 8),
+                  Text(
+                    "Participar da Chamada",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    "Ativar detecção de proximidade",
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 28),
+          ],
+        );
+
+      case AlunoStatus.procurando:
+        return Column(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 20),
+            const Text(
+              "Procurando professor na sala...",
+              style: TextStyle(fontSize: 18, color: Colors.deepPurple),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              timerService.chamadaAtiva
+                  ? (timerService.janelaRegistroAberta
+                      ? "Janela da Rodada ${timerService.rodadaAtual} aberta!"
+                      : "Aguardando janela da Rodada ${timerService.rodadaAtual + 1}...")
+                  : "Aguardando início da chamada...",
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        );
+
+      case AlunoStatus.registrado:
+        return Column(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 60),
+            const SizedBox(height: 16),
+            Text(
+              "Professor encontrado! Presença registrada na Rodada $_rodadaRegistrada!",
+              style: const TextStyle(fontSize: 18, color: Colors.green, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+             const SizedBox(height: 8),
+             Container(
+               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+               decoration: BoxDecoration(
+                 color: Colors.green.shade50,
+                 borderRadius: BorderRadius.circular(8),
+               ),
+               child: Text(
+                 "Sua presença está sendo registrada automaticamente.\nMantenha-se próximo ao professor.",
+                 style: TextStyle(color: Colors.green.shade800, fontSize: 12),
+                 textAlign: TextAlign.center,
+               ),
+             ),
+             const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => setState(() { _status = AlunoStatus.ocioso; }),
+                child: const Text('Ok'),
+              ),
+          ],
+        );
+
+       case AlunoStatus.falhaJanelaFechada:
+       case AlunoStatus.falhaForaDaChamada:
+        return Column(
+          children: [
+            const Icon(Icons.error, color: Colors.red, size: 60),
+            const SizedBox(height: 16),
+            Text(
+              _status == AlunoStatus.falhaJanelaFechada
+                  ? "Não foi possível registrar.\nA janela de registro da rodada está fechada."
+                  : "Não foi possível registrar.\nA chamada não está ativa no momento.",
+              style: const TextStyle(fontSize: 16, color: Colors.red, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => setState(() { _status = AlunoStatus.ocioso; }), // Volta ao estado inicial
+              child: const Text('Tentar Novamente'),
+            ),
+          ],
+        );
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -11,7 +205,10 @@ class AlunoScreen extends StatelessWidget {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+             _pararSimuladorScan();
+             Navigator.pop(context);
+          }
         ),
         actions: const [
           Padding(
@@ -26,8 +223,7 @@ class AlunoScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Cabeçalho
-              Container(
+               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -61,7 +257,6 @@ class AlunoScreen extends StatelessWidget {
                 ),
               ),
 
-              // Card de ação principal
               Container(
                 width: double.infinity,
                 decoration: const BoxDecoration(
@@ -75,50 +270,14 @@ class AlunoScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C853),
-                        padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 50),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      onPressed: () {
-                        // Ação de participar da chamada
-                      },
-                      child: const Column(
-                        children: [
-                          Icon(Icons.wifi_tethering, color: Colors.white, size: 40),
-                          SizedBox(height: 8),
-                          Text(
-                            "Participar da Chamada",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            "Ativar detecção de proximidade",
-                            style: TextStyle(color: Colors.white70, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 28),
-                    const SizedBox(height: 16),
-                  ],
+                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16), 
+                child: Center( 
+                  child: _buildStatusContent(),
                 ),
               ),
 
               const SizedBox(height: 24),
 
-              // Informações adicionais
               _buildInfoCard(
                 icon: Icons.bluetooth,
                 text: "Mantenha o Bluetooth ativado para registrar sua presença",
@@ -137,7 +296,7 @@ class AlunoScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoCard({required IconData icon, required String text, required Color color}) {
+   Widget _buildInfoCard({required IconData icon, required String text, required Color color}) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 
 class ChamadaTimerService with ChangeNotifier {
   static const int totalRodadas = 4;
@@ -15,9 +16,13 @@ class ChamadaTimerService with ChangeNotifier {
   DateTime? _inicioProximaRodada; 
   DateTime? _fimJanelaRegistroAtual;
 
+  final List<Map<String, String>> _alunosPresentesRodada = [];
+
   int get rodadaAtual => _rodadaAtual;
   bool get chamadaAtiva => _chamadaAtiva;
   bool get janelaRegistroAberta => _janelaRegistroAberta;
+
+  List<Map<String, String>> get alunosPresentesNaRodadaAtual => List.unmodifiable(_alunosPresentesRodada);
 
   Duration get tempoAteProximaRodada {
     if (!_chamadaAtiva || _inicioProximaRodada == null || _rodadaAtual >= totalRodadas) {
@@ -44,6 +49,7 @@ class ChamadaTimerService with ChangeNotifier {
     _rodadaAtual = 0;
     _chamadaAtiva = true;
     _janelaRegistroAberta = false;
+    _alunosPresentesRodada.clear();
     _inicioProximaRodada = DateTime.now();
     _fimJanelaRegistroAtual = null;
     notifyListeners();
@@ -60,6 +66,7 @@ class ChamadaTimerService with ChangeNotifier {
 
     _rodadaAtual++;
     _janelaRegistroAberta = true;
+    _alunosPresentesRodada.clear();
     _fimJanelaRegistroAtual = DateTime.now().add(duracaoJanelaRegistro);
     print("SERVIÇO TIMER: Rodada $_rodadaAtual iniciada. Janela aberta até $_fimJanelaRegistroAtual.");
     notifyListeners();
@@ -109,6 +116,7 @@ class ChamadaTimerService with ChangeNotifier {
     _janelaRegistroAberta = false;
     _inicioProximaRodada = null;
     _fimJanelaRegistroAtual = null;
+    _alunosPresentesRodada.clear();
     notifyListeners();
   }
 
@@ -126,6 +134,25 @@ class ChamadaTimerService with ChangeNotifier {
      _janelaRegistroAberta = false;
      _inicioProximaRodada = null;
      _fimJanelaRegistroAtual = null;
+  }
+
+  void registrarPresencaAluno(String nomeAluno, String raAluno) {
+    if (janelaRegistroAberta && _chamadaAtiva) {
+      if (!_alunosPresentesRodada.any((aluno) => aluno['ra'] == raAluno)) {
+          final timestamp = DateFormat('HH:mm:ss').format(DateTime.now());
+          _alunosPresentesRodada.add({
+              'nome': nomeAluno,
+              'ra': raAluno,
+              'timestamp': 'Registrado às $timestamp'
+          });
+          print("SERVIÇO TIMER: Aluno $nomeAluno ($raAluno) registrado na rodada $_rodadaAtual.");
+          notifyListeners();
+      } else {
+         print("SERVIÇO TIMER: Aluno $nomeAluno ($raAluno) já registrado na rodada $_rodadaAtual.");
+      }
+    } else {
+       print("SERVIÇO TIMER: Tentativa de registro do aluno $nomeAluno fora da janela ou chamada inativa.");
+    }
   }
 
   @override

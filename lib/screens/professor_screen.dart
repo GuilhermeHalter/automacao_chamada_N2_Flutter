@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/chamada_timer_service.dart';
+import 'chamada_ativa_screen.dart';
 import 'relatorio_chamada_screen.dart';
 
 class TelaProfessor extends StatelessWidget {
@@ -79,7 +82,14 @@ class TelaProfessor extends StatelessWidget {
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 18),
                 onTap: () {
-                  // ação futura
+                  final timerService = context.read<ChamadaTimerService>();
+                  timerService.iniciarChamada();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ChamadaAtivaScreen(), 
+                    ),
+                  );
                 },
               ),
             ),

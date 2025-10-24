@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
+import 'services/chamada_timer_service.dart';
 
 void main() {
-  runApp(const ChamadaApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => ChamadaTimerService(),
+      child: const ChamadaApp()
+    )
+  );
 }
 
 class ChamadaApp extends StatelessWidget {

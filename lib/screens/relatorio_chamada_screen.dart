@@ -1,7 +1,66 @@
+import 'dart:convert';
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:universal_html/html.dart' as html;
 
 class RelatorioChamadaScreen extends StatelessWidget {
   const RelatorioChamadaScreen({super.key});
+
+  // --- Método híbrido para exportar CSV ---
+  Future<void> _exportarCSV(BuildContext context, List<Map<String, dynamic>> alunos) async {
+  try {
+    // Cabeçalho
+    String csvData = 'NOME;RODADA 1;RODADA 2;RODADA 3;RODADA 4;TOTAL\n';
+
+    for (var aluno in alunos) {
+      List<bool> rodadas = List<bool>.from(aluno["rodadas"] as List);
+      int totalPresencas = rodadas.where((p) => p).length;
+      double percentual = (totalPresencas / rodadas.length) * 100;
+
+      String linha =
+          '${aluno["nome"]};'
+          '${rodadas[0] ? "Presente" : "Falta"};'
+          '${rodadas[1] ? "Presente" : "Falta"};'
+          '${rodadas[2] ? "Presente" : "Falta"};'
+          '${rodadas[3] ? "Presente" : "Falta"};'
+          '$totalPresencas/${rodadas.length} (${percentual.toStringAsFixed(1)}%)\n';
+
+      csvData += linha;
+    }
+
+    if (kIsWeb) {
+      final bytes = utf8.encode(csvData);
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', 'relatorio_chamada.csv')
+        ..click();
+
+      html.Url.revokeObjectUrl(url);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Arquivo CSV baixado com sucesso (Web)!')),
+      );
+    } else {
+      final directory = await getApplicationDocumentsDirectory();
+      final path = '${directory.path}/relatorio_chamada.csv';
+      final file = File(path);
+      await file.writeAsString(csvData);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Arquivo salvo em: $path')),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Erro ao exportar CSV: $e')),
+    );
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -30,10 +89,11 @@ class RelatorioChamadaScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: Icon(Icons.download),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download),
+            tooltip: 'Exportar CSV',
+            onPressed: () => _exportarCSV(context, alunos),
           ),
         ],
       ),
@@ -71,13 +131,10 @@ class RelatorioChamadaScreen extends StatelessWidget {
                 ],
               ),
               child: DataTable(
-                headingRowColor:
-                    MaterialStateProperty.all(Colors.grey.shade100),
+                headingRowColor: MaterialStateProperty.all(Colors.grey.shade100),
                 columnSpacing: 18,
                 columns: const [
-                  DataColumn(
-                      label: Text("ALUNO",
-                          style: TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text("ALUNO", style: TextStyle(fontWeight: FontWeight.bold))),
                   DataColumn(label: Text("RODADA 1")),
                   DataColumn(label: Text("RODADA 2")),
                   DataColumn(label: Text("RODADA 3")),
@@ -85,10 +142,8 @@ class RelatorioChamadaScreen extends StatelessWidget {
                   DataColumn(label: Text("TOTAL")),
                 ],
                 rows: alunos.map((aluno) {
-                  final List<bool> rodadas =
-                      List<bool>.from(aluno["rodadas"] as List);
-                  int totalPresencas =
-                      rodadas.where((p) => p == true).length;
+                  final List<bool> rodadas = List<bool>.from(aluno["rodadas"] as List);
+                  int totalPresencas = rodadas.where((p) => p == true).length;
                   return DataRow(
                     cells: [
                       DataCell(Text(aluno["nome"] as String)),
@@ -109,14 +164,11 @@ class RelatorioChamadaScreen extends StatelessWidget {
             // Estatísticas
             Row(
               children: [
-                _buildStatCard(
-                    "TOTAL DE ALUNOS", "${alunos.length}", Colors.grey.shade200, Colors.black87),
+                _buildStatCard("TOTAL DE ALUNOS", "${alunos.length}", Colors.grey.shade200, Colors.black87),
                 const SizedBox(width: 8),
-                _buildStatCard(
-                    "PRESENÇA MÉDIA", "$presencaMedia%", Colors.green.shade50, Colors.green.shade800),
+                _buildStatCard("PRESENÇA MÉDIA", "$presencaMedia%", Colors.green.shade50, Colors.green.shade800),
                 const SizedBox(width: 8),
-                _buildStatCard(
-                    "RODADAS COMPLETAS", rodadasCompletas, Colors.purple.shade50, Colors.purple.shade800),
+                _buildStatCard("RODADAS COMPLETAS", rodadasCompletas, Colors.purple.shade50, Colors.purple.shade800),
               ],
             ),
           ],
@@ -125,8 +177,7 @@ class RelatorioChamadaScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(
-      String label, String value, Color bgColor, Color textColor) {
+  Widget _buildStatCard(String label, String value, Color bgColor, Color textColor) {
     return Expanded(
       child: Container(
         decoration: BoxDecoration(

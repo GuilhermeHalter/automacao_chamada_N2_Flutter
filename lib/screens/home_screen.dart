@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'professor_screen.dart';
+import 'login_screen.dart';
 import 'aluno_screen.dart';
 
 class TelaInicial extends StatelessWidget {
@@ -96,7 +97,8 @@ class TelaInicial extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AlunoScreen(),
+                        builder: (context) =>
+                            const LoginScreen(), // 🔹 Vai pro login
                       ),
                     );
                   },

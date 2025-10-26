@@ -1,18 +1,21 @@
-import 'dart:async'; 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/chamada_timer_service.dart';
+import '../services/usuario_service.dart';
 
 enum AlunoStatus {
-  ocioso, 
+  ocioso,
   procurando,
-  registrado, 
-  falhaJanelaFechada, 
+  registrado,
+  falhaJanelaFechada,
   falhaForaDaChamada,
 }
 
 class AlunoScreen extends StatefulWidget {
-  const AlunoScreen({super.key});
+  final Usuario usuario;
+
+  const AlunoScreen({super.key, required this.usuario});
 
   @override
   State<AlunoScreen> createState() => _AlunoScreenState();
@@ -29,6 +32,7 @@ class _AlunoScreenState extends State<AlunoScreen> {
     super.dispose();
   }
 
+  /// Inicia o simulador que "detecta" o professor.
   void _iniciarSimuladorScan() {
     setState(() {
       _status = AlunoStatus.procurando;
@@ -36,7 +40,8 @@ class _AlunoScreenState extends State<AlunoScreen> {
 
     _pararSimuladorScan();
 
-    _scanSimulatorTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    _scanSimulatorTimer =
+        Timer.periodic(const Duration(seconds: 2), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
@@ -53,10 +58,14 @@ class _AlunoScreenState extends State<AlunoScreen> {
       }
 
       if (timerService.janelaRegistroAberta) {
-        print("ALUNO SCREEN: Professor 'detectado' na rodada ${timerService.rodadaAtual}");
+        print(
+            "ALUNO SCREEN: Professor detectado na rodada ${timerService.rodadaAtual}");
 
-        // TODO: Substituir por dados reais do aluno logado no futuro
-        timerService.registrarPresencaAluno("Aluno Teste", "RA001");
+        // Registra presença do aluno logado
+        timerService.registrarPresencaAluno(
+          widget.usuario.nome,
+          widget.usuario.ra,
+        );
 
         setState(() {
           _status = AlunoStatus.registrado;
@@ -64,20 +73,22 @@ class _AlunoScreenState extends State<AlunoScreen> {
         });
         _pararSimuladorScan();
       } else {
-        print("ALUNO SCREEN: Procurando... Janela fechada ou ainda não abriu.");
-         if(_status != AlunoStatus.procurando) {
-             setState(() { _status = AlunoStatus.procurando; });
-         }
+        print("ALUNO SCREEN: Procurando... janela fechada ou ainda não abriu.");
+        if (_status != AlunoStatus.procurando) {
+          setState(() => _status = AlunoStatus.procurando);
+        }
       }
     });
   }
 
+  /// Para o simulador de varredura
   void _pararSimuladorScan() {
     _scanSimulatorTimer?.cancel();
     _scanSimulatorTimer = null;
     print("ALUNO SCREEN: Simulador de Scan parado.");
   }
 
+  /// Mostra o conteúdo de acordo com o status do aluno
   Widget _buildStatusContent() {
     final timerService = context.watch<ChamadaTimerService>();
 
@@ -149,32 +160,39 @@ class _AlunoScreenState extends State<AlunoScreen> {
             const SizedBox(height: 16),
             Text(
               "Professor encontrado! Presença registrada na Rodada $_rodadaRegistrada!",
-              style: const TextStyle(fontSize: 18, color: Colors.green, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 18,
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
               textAlign: TextAlign.center,
             ),
-             const SizedBox(height: 8),
-             Container(
-               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-               decoration: BoxDecoration(
-                 color: Colors.green.shade50,
-                 borderRadius: BorderRadius.circular(8),
-               ),
-               child: Text(
-                 "Sua presença está sendo registrada automaticamente.\nMantenha-se próximo ao professor.",
-                 style: TextStyle(color: Colors.green.shade800, fontSize: 12),
-                 textAlign: TextAlign.center,
-               ),
-             ),
-             const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => setState(() { _status = AlunoStatus.ocioso; }),
-                child: const Text('Ok'),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: Text(
+                "Sua presença está sendo registrada automaticamente.\nMantenha-se próximo ao professor.",
+                style: TextStyle(
+                  color: Colors.green.shade800,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => setState(() => _status = AlunoStatus.ocioso),
+              child: const Text('Ok'),
+            ),
           ],
         );
 
-       case AlunoStatus.falhaJanelaFechada:
-       case AlunoStatus.falhaForaDaChamada:
+      case AlunoStatus.falhaJanelaFechada:
+      case AlunoStatus.falhaForaDaChamada:
         return Column(
           children: [
             const Icon(Icons.error, color: Colors.red, size: 60),
@@ -183,12 +201,16 @@ class _AlunoScreenState extends State<AlunoScreen> {
               _status == AlunoStatus.falhaJanelaFechada
                   ? "Não foi possível registrar.\nA janela de registro da rodada está fechada."
                   : "Não foi possível registrar.\nA chamada não está ativa no momento.",
-              style: const TextStyle(fontSize: 16, color: Colors.red, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => setState(() { _status = AlunoStatus.ocioso; }), // Volta ao estado inicial
+              onPressed: () => setState(() => _status = AlunoStatus.ocioso),
               child: const Text('Tentar Novamente'),
             ),
           ],
@@ -196,19 +218,19 @@ class _AlunoScreenState extends State<AlunoScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Aluno", style: TextStyle(fontWeight: FontWeight.bold)),
+        title:
+            const Text("Aluno", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-             _pararSimuladorScan();
-             Navigator.pop(context);
-          }
+            _pararSimuladorScan();
+            Navigator.pop(context);
+          },
         ),
         actions: const [
           Padding(
@@ -223,30 +245,32 @@ class _AlunoScreenState extends State<AlunoScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-               Container(
+              // 🔹 Cabeçalho com nome do aluno logado
+              Container(
                 width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
                     colors: [Color(0xFF00C853), Color(0xFF00E676)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 padding: const EdgeInsets.all(24),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Olá, Aluno!",
-                      style: TextStyle(
+                      "Olá, ${widget.usuario.nome}!",
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 4),
-                    Text(
+                    const SizedBox(height: 4),
+                    const Text(
                       "Pronto para participar da chamada?",
                       style: TextStyle(
                         color: Colors.white70,
@@ -257,11 +281,13 @@ class _AlunoScreenState extends State<AlunoScreen> {
                 ),
               ),
 
+              // 🔹 Corpo com status dinâmico
               Container(
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+                  borderRadius:
+                      BorderRadius.vertical(bottom: Radius.circular(24)),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
@@ -270,17 +296,18 @@ class _AlunoScreenState extends State<AlunoScreen> {
                     ),
                   ],
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16), 
-                child: Center( 
-                  child: _buildStatusContent(),
-                ),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                child: Center(child: _buildStatusContent()),
               ),
 
               const SizedBox(height: 24),
 
+              // 🔹 Dicas visuais
               _buildInfoCard(
                 icon: Icons.bluetooth,
-                text: "Mantenha o Bluetooth ativado para registrar sua presença",
+                text:
+                    "Mantenha o Bluetooth ativado para registrar sua presença",
                 color: Colors.lightBlue.shade50,
               ),
               const SizedBox(height: 8),
@@ -296,7 +323,12 @@ class _AlunoScreenState extends State<AlunoScreen> {
     );
   }
 
-   Widget _buildInfoCard({required IconData icon, required String text, required Color color}) {
+  /// Cartão informativo simples
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(

@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 
 class ChamadaTimerService with ChangeNotifier {
   static const int totalRodadas = 4;
-  static const Duration intervaloEntreRodadas = Duration(seconds: 60); // TODO: Alterar para Duration(minutes: 50) em produção
-  static const Duration duracaoJanelaRegistro = Duration(seconds: 15); // TODO: Alterar para Duration(minutes: 5) em produção
+  static const Duration intervaloEntreRodadas = Duration(minutes: 50);
+  static const Duration duracaoJanelaRegistro = Duration(minutes: 5); 
 
   Timer? _timerRodadas; 
   Timer? _timerJanela; 

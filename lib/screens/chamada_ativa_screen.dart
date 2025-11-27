@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../services/chamada_timer_service.dart';
 
@@ -11,51 +12,21 @@ class ChamadaAtivaScreen extends StatefulWidget {
 }
 
 class _ChamadaAtivaScreenState extends State<ChamadaAtivaScreen> {
-  _ChamadaAtivaScreenState();
-
   Timer? _uiUpdateTimer;
 
   @override
   void initState() {
     super.initState();
     _uiUpdateTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) { 
+      if (mounted) {
         setState(() {});
       }
     });
-
-    // --- SIMULAÇÃO: Adiciona alunos após alguns segundos ---
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) { 
-        final timerService = context.read<ChamadaTimerService>();
-        timerService.registrarPresencaAluno("Ana Silva", "123");
-      }
-    });
-    Future.delayed(const Duration(seconds: 8), () {
-      if (mounted) {
-        final timerService = context.read<ChamadaTimerService>();
-        timerService.registrarPresencaAluno("Bruno Costa", "456");
-      }
-    });
-    Future.delayed(const Duration(seconds: 12), () {
-      if (mounted) {
-        final timerService = context.read<ChamadaTimerService>();
-        timerService.registrarPresencaAluno("Carlos Mendes", "789");
-      }
-    });
-    Future.delayed(const Duration(seconds: 18), () {
-      if (mounted) {
-        final timerService = context.read<ChamadaTimerService>();
-        timerService.registrarPresencaAluno("Diana Oliveira", "101");
-      }
-    });
-    // --- FIM DA SIMULAÇÃO ---
   }
 
   @override
   void dispose() {
     _uiUpdateTimer?.cancel();
-    print("ChamadaAtivaScreen: UI Update Timer cancelado.");
     super.dispose();
   }
 
@@ -64,6 +35,16 @@ class _ChamadaAtivaScreenState extends State<ChamadaAtivaScreen> {
     final minutes = twoDigits(duration.inMinutes.remainder(60));
     final seconds = twoDigits(duration.inSeconds.remainder(60));
     return "$minutes:$seconds";
+  }
+
+  String _formatTimestamp(String? isoString) {
+    if (isoString == null) return '--:--:--';
+    try {
+      final dt = DateTime.parse(isoString).toLocal();
+      return DateFormat('HH:mm:ss').format(dt);
+    } catch (e) {
+      return isoString;
+    }
   }
 
   @override
@@ -181,31 +162,53 @@ class _ChamadaAtivaScreenState extends State<ChamadaAtivaScreen> {
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: timerService.alunosPresentesNaRodadaAtual.isEmpty
-                    ? Center(
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: timerService.presencasEmTempoReal,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text('Erro ao carregar lista: ${snapshot.error}'),
+                      );
+                    }
+
+                    final alunos = snapshot.data ?? [];
+
+                    if (alunos.isEmpty) {
+                      return Center(
                         child: Text(
                           timerService.janelaRegistroAberta
                               ? 'Aguardando registros...'
-                              : (timerService.chamadaAtiva ? 'Nenhum registro nesta rodada.' : 'Chamada não iniciada.'),
+                              : 'Nenhum registro nesta rodada.',
                           style: TextStyle(color: Colors.grey.shade600),
                           textAlign: TextAlign.center,
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: timerService.alunosPresentesNaRodadaAtual.length,
-                        itemBuilder: (context, index) {
-                          final aluno = timerService.alunosPresentesNaRodadaAtual[index];
-                          return ListTile(
-                            leading: const Icon(Icons.check_circle, color: Colors.green),
-                            title: Text(aluno['nome'] ?? 'Nome Aluno $index'),
-                            subtitle: Text(aluno['timestamp'] ?? 'Registrado às HH:MM:SS'), 
-                          );
-                        },
-                      ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: alunos.length,
+                      itemBuilder: (context, index) {
+                        final aluno = alunos[index];
+                        return ListTile(
+                          leading: const Icon(Icons.check_circle, color: Colors.green),
+                          title: Text(aluno['nome_aluno'] ?? 'Desconhecido'),
+                          subtitle: Text(
+                            'RA: ${aluno['ra_aluno']} • ${_formatTimestamp(aluno['created_at'])}',
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
             const SizedBox(height: 10),
-              Container(
+            
+            Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.blue.shade50,
@@ -213,11 +216,11 @@ class _ChamadaAtivaScreenState extends State<ChamadaAtivaScreen> {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.bluetooth_searching, color: Colors.blue),
+                  Icon(Icons.cloud_sync, color: Colors.blue),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'O sistema está detectando automaticamente os alunos próximos.',
+                      'Sincronizado em tempo real com a nuvem.',
                       style: TextStyle(fontSize: 13, color: Colors.black87),
                     ),
                   ),

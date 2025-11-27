@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ChamadaTimerService with ChangeNotifier {
   static const int totalRodadas = 4;
   static const Duration intervaloEntreRodadas = Duration(minutes: 50);
   static const Duration duracaoJanelaRegistro = Duration(minutes: 5); 
+
+  final _supabase = Supabase.instance.client;
 
   Timer? _timerRodadas; 
   Timer? _timerJanela; 
@@ -16,13 +18,20 @@ class ChamadaTimerService with ChangeNotifier {
   DateTime? _inicioProximaRodada; 
   DateTime? _fimJanelaRegistroAtual;
 
-  final List<Map<String, String>> _alunosPresentesRodada = [];
-
   int get rodadaAtual => _rodadaAtual;
   bool get chamadaAtiva => _chamadaAtiva;
   bool get janelaRegistroAberta => _janelaRegistroAberta;
 
-  List<Map<String, String>> get alunosPresentesNaRodadaAtual => List.unmodifiable(_alunosPresentesRodada);
+  Stream<List<Map<String, dynamic>>> get presencasEmTempoReal {
+    if (!_chamadaAtiva || _rodadaAtual == 0) {
+      return const Stream.empty();
+    }
+    return _supabase
+        .from('presencas')
+        .stream(primaryKey: ['id'])
+        .eq('rodada', _rodadaAtual)
+        .order('created_at', ascending: false);
+  }
 
   Duration get tempoAteProximaRodada {
     if (!_chamadaAtiva || _inicioProximaRodada == null || _rodadaAtual >= totalRodadas) {
@@ -49,7 +58,6 @@ class ChamadaTimerService with ChangeNotifier {
     _rodadaAtual = 0;
     _chamadaAtiva = true;
     _janelaRegistroAberta = false;
-    _alunosPresentesRodada.clear();
     _inicioProximaRodada = DateTime.now();
     _fimJanelaRegistroAtual = null;
     notifyListeners();
@@ -66,9 +74,9 @@ class ChamadaTimerService with ChangeNotifier {
 
     _rodadaAtual++;
     _janelaRegistroAberta = true;
-    _alunosPresentesRodada.clear();
     _fimJanelaRegistroAtual = DateTime.now().add(duracaoJanelaRegistro);
-    print("SERVIÇO TIMER: Rodada $_rodadaAtual iniciada. Janela aberta até $_fimJanelaRegistroAtual.");
+    print("SERVIÇO TIMER: Rodada $_rodadaAtual iniciada no Supabase.");
+    
     notifyListeners();
 
     _timerJanela?.cancel();
@@ -76,15 +84,13 @@ class ChamadaTimerService with ChangeNotifier {
 
     if (_rodadaAtual < totalRodadas) {
       _inicioProximaRodada = DateTime.now().add(intervaloEntreRodadas);
-      print("SERVIÇO TIMER: Próxima rodada (${_rodadaAtual + 1}) agendada para $_inicioProximaRodada.");
-
+      
       _timerRodadas?.cancel();
       _timerRodadas = Timer(intervaloEntreRodadas, _iniciarProximaRodada);
     } else {
       _inicioProximaRodada = null;
-      print("SERVIÇO TIMER: Esta é a última rodada.");
     }
-     notifyListeners();
+    notifyListeners();
   }
 
   void _fecharJanelaRegistro() {
@@ -96,27 +102,25 @@ class ChamadaTimerService with ChangeNotifier {
     notifyListeners();
 
     if (_rodadaAtual >= totalRodadas) {
-      print("SERVIÇO TIMER: Janela da última rodada fechada.");
       _encerrarChamadaCompleta();
     }
   }
 
   void encerrarChamadaManualmente() {
      if (!_chamadaAtiva) return;
-     print("SERVIÇO TIMER: Chamada encerrada manualmente pelo professor.");
+     print("SERVIÇO TIMER: Chamada encerrada manualmente.");
      _cancelarTimers();
      _resetarEstado();
      notifyListeners();
   }
 
   void _encerrarChamadaCompleta() {
-    print("SERVIÇO TIMER: Chamada encerrada automaticamente após ${totalRodadas} rodadas.");
+    print("SERVIÇO TIMER: Fim da aula.");
     _cancelarTimers();
     _chamadaAtiva = false;
     _janelaRegistroAberta = false;
     _inicioProximaRodada = null;
     _fimJanelaRegistroAtual = null;
-    _alunosPresentesRodada.clear();
     notifyListeners();
   }
 
@@ -125,7 +129,6 @@ class ChamadaTimerService with ChangeNotifier {
     _timerJanela?.cancel();
     _timerRodadas = null;
     _timerJanela = null;
-    print("SERVIÇO TIMER: Timers cancelados.");
   }
 
   void _resetarEstado() {
@@ -136,28 +139,27 @@ class ChamadaTimerService with ChangeNotifier {
      _fimJanelaRegistroAtual = null;
   }
 
-  void registrarPresencaAluno(String nomeAluno, String raAluno) {
+  Future<void> registrarPresencaAluno(String nomeAluno, String raAluno) async {
     if (janelaRegistroAberta && _chamadaAtiva) {
-      if (!_alunosPresentesRodada.any((aluno) => aluno['ra'] == raAluno)) {
-          final timestamp = DateFormat('HH:mm:ss').format(DateTime.now());
-          _alunosPresentesRodada.add({
-              'nome': nomeAluno,
-              'ra': raAluno,
-              'timestamp': 'Registrado às $timestamp'
-          });
-          print("SERVIÇO TIMER: Aluno $nomeAluno ($raAluno) registrado na rodada $_rodadaAtual.");
-          notifyListeners();
-      } else {
-         print("SERVIÇO TIMER: Aluno $nomeAluno ($raAluno) já registrado na rodada $_rodadaAtual.");
+      try {
+        await _supabase.from('presencas').insert({
+          'ra_aluno': raAluno,
+          'nome_aluno': nomeAluno,
+          'rodada': _rodadaAtual,
+          // 'created_at' é gerado automaticamente pelo banco
+        });
+        
+        print("SERVIÇO TIMER: Aluno $nomeAluno ($raAluno) salvo no Supabase.");        
+      } catch (e) {
+         print("SERVIÇO TIMER: Erro ao registrar presença (possível duplicata): $e");
       }
     } else {
-       print("SERVIÇO TIMER: Tentativa de registro do aluno $nomeAluno fora da janela ou chamada inativa.");
+       print("SERVIÇO TIMER: Tentativa de registro fora da janela.");
     }
   }
 
   @override
   void dispose() {
-    print("SERVIÇO TIMER: Dispose chamado, cancelando timers.");
     _cancelarTimers();
     super.dispose();
   }

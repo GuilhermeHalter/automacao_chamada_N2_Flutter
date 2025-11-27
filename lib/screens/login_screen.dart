@@ -13,36 +13,43 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _raController = TextEditingController();
   final _senhaController = TextEditingController();
+  
   bool _carregando = false;
   String? _erro;
 
-  void _fazerLogin() async {
+  Future<void> _fazerLogin() async {
     setState(() {
       _carregando = true;
       _erro = null;
     });
 
-    final ra = _raController.text.trim();
-    final senha = _senhaController.text.trim();
+    try {
+      final ra = _raController.text.trim();
+      final senha = _senhaController.text.trim();
 
-    await Future.delayed(const Duration(milliseconds: 500));
+      final usuario = await UsuarioService.autenticar(ra, senha);
 
-    final usuario = UsuarioService.autenticar(ra, senha);
-
-    if (usuario != null) {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AlunoScreen(usuario: usuario),
-          ),
-        );
+      if (usuario != null) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AlunoScreen(usuario: usuario),
+            ),
+          );
+        }
+      } else {
+        setState(() => _erro = "RA ou senha inválidos.");
       }
-    } else {
-      setState(() => _erro = "RA ou senha inválidos.");
+    } catch (e) {
+      setState(() {
+        _erro = e.toString().replaceAll('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _carregando = false);
+      }
     }
-
-    setState(() => _carregando = false);
   }
 
   @override

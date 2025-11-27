@@ -13,27 +13,40 @@ class _CadastroScreenState extends State<CadastroScreen> {
   final _nomeController = TextEditingController();
   final _raController = TextEditingController();
   final _senhaController = TextEditingController();
+  
+  bool _isLoading = false;
   String? _erro;
 
-  void _fazerCadastro() {
+  Future<void> _fazerCadastro() async {
     if (_formKey.currentState?.validate() != true) return;
 
+    setState(() {
+      _isLoading = true;
+      _erro = null;
+    });
+
     try {
-      UsuarioService.cadastrarAluno(
+      await UsuarioService.cadastrarAluno(
         _nomeController.text.trim(),
         _raController.text.trim(),
         _senhaController.text.trim(),
       );
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Cadastro realizado com sucesso!")),
       );
 
-      Navigator.pop(context); // Volta para o login
+      Navigator.pop(context);
     } catch (e) {
       setState(() {
         _erro = e.toString().replaceAll('Exception: ', '');
       });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -79,17 +92,21 @@ class _CadastroScreenState extends State<CadastroScreen> {
                 validator: (v) => v!.isEmpty ? "Informe a senha" : null,
               ),
               const SizedBox(height: 20),
+              
               if (_erro != null)
                 Text(_erro!, style: const TextStyle(color: Colors.red)),
               const SizedBox(height: 10),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  minimumSize: const Size(double.infinity, 50),
-                ),
-                onPressed: _fazerCadastro,
-                child: const Text("Cadastrar", style: TextStyle(color: Colors.white)),
-              ),
+              
+              _isLoading
+                  ? const CircularProgressIndicator()
+                  : ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                      onPressed: _fazerCadastro,
+                      child: const Text("Cadastrar", style: TextStyle(color: Colors.white)),
+                    ),
             ],
           ),
         ),

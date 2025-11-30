@@ -1,4 +1,4 @@
-# Sistema Automatizado de Chamada (N2)
+# Sistema Automatizado de Chamada
 
 Um aplicativo móvel desenvolvido em Flutter para automatizar a verificação de presença em sala de aula, utilizando a simulação de proximidade Bluetooth Low Energy (BLE) para garantir que a verificação se baseie na presença física dos alunos.
 
